@@ -2,26 +2,12 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>勉強タイマー（動作確認用）</title>
+<title>勉強タイマー＋今日の勉強時間</title>
 <style>
-  body {
-    font-family: sans-serif;
-    text-align: center;
-    margin-top: 50px;
-  }
-  #remainingTime {
-    font-size: 3em;
-    margin-bottom: 20px;
-  }
-  button {
-    font-size: 1.5em;
-    margin: 5px;
-    padding: 10px 20px;
-  }
-  #status {
-    margin-top: 15px;
-    font-size: 1.2em;
-  }
+  body { font-family: sans-serif; text-align: center; margin-top: 40px; }
+  #remainingTime { font-size: 3em; margin-bottom: 10px; }
+  button { font-size: 1.2em; margin: 5px; padding: 10px 20px; }
+  #status, #todayTotal, #currentDateTime { margin-top: 10px; font-size: 1.1em; }
 </style>
 </head>
 <body>
@@ -31,6 +17,8 @@
 <button id="startBtn">勉強開始</button>
 <button id="stopBtn">勉強停止</button>
 <div id="status"></div>
+<div id="todayTotal">今日の勉強時間: 00:00:00</div>
+<div id="currentDateTime">--/-- --:--:--</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
@@ -54,6 +42,8 @@ const MAX_TIME = 180 * 60; // 3時間（秒）
 let remaining = MAX_TIME;
 let studying = false;
 let lastUpdate = Date.now();
+let todayStudyTotal = 0;
+let todayDateStr = "";  // 今日の日付YYYY-MM-DD
 
 let userId = localStorage.getItem("userId");
 if (!userId) {
@@ -63,6 +53,8 @@ if (!userId) {
 
 const remainingTimeElem = document.getElementById("remainingTime");
 const statusElem = document.getElementById("status");
+const todayTotalElem = document.getElementById("todayTotal");
+const currentDateTimeElem = document.getElementById("currentDateTime");
 const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 
@@ -73,12 +65,21 @@ function formatTime(sec) {
   return `${h}:${m}:${s}`;
 }
 
-// 活動時間制限は一時的に外す（常にtrue）
+function getTodayStr(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function updateDisplay() {
+  remainingTimeElem.textContent = formatTime(remaining);
+  statusElem.textContent = studying ? "勉強中" : "勉強停止中";
+  todayTotalElem.textContent = `今日の勉強時間: ${formatTime(todayStudyTotal)}`;
+  const now = new Date();
+  currentDateTimeElem.textContent = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,"0")}/${String(now.getDate()).padStart(2,"0")} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
+}
+
+// 時間帯制限なしで常にtrue（動作確認用）
 function isActiveTime() {
-  return true; 
-  // 本来は以下を使う
-  // const hour = new Date().getHours();
-  // return hour >= 6 && hour < 23;
+  return true;
 }
 
 async function loadTimer() {
@@ -89,15 +90,31 @@ async function loadTimer() {
     remaining = data.remaining;
     studying = data.studying;
     lastUpdate = data.lastUpdated;
-    updateDisplay();
+    // 今日の日付と保存された日付を比べる
+    todayDateStr = getTodayStr();
+    if (data.todayDate !== todayDateStr) {
+      todayStudyTotal = 0; // 日付違えばリセット
+    } else {
+      todayStudyTotal = data.todayStudyTotal || 0;
+    }
   } else {
-    await setDoc(doc(db, "studyTimers", userId), {
-      remaining: MAX_TIME,
-      studying: false,
-      lastUpdated: Date.now()
+    remaining = MAX_TIME;
+    studying = false;
+    lastUpdate = Date.now();
+    todayDateStr = getTodayStr();
+    todayStudyTotal = 0;
+    await setDoc(docRef, {
+      remaining,
+      studying,
+      lastUpdated,
+      todayDate: todayDateStr,
+      todayStudyTotal
     });
-    updateDisplay();
   }
+  updateDisplay();
+  isLoaded = true;
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(updateTimer, 1000);
 }
 
 async function saveTimer() {
@@ -105,16 +122,17 @@ async function saveTimer() {
   await updateDoc(docRef, {
     remaining,
     studying,
-    lastUpdated: Date.now()
+    lastUpdated,
+    todayDate: todayDateStr,
+    todayStudyTotal
   });
 }
 
-function updateDisplay() {
-  remainingTimeElem.textContent = formatTime(remaining);
-  statusElem.textContent = studying ? "勉強中" : "勉強停止中";
-}
+let timerInterval = null;
+let isLoaded = false;
 
 function updateTimer() {
+  if (!isLoaded) return;
   if (!isActiveTime() || remaining <= 0) {
     updateDisplay();
     return;
@@ -125,9 +143,16 @@ function updateTimer() {
     if (studying) {
       remaining += diffSec;
       if (remaining > MAX_TIME) remaining = MAX_TIME;
+      todayStudyTotal += diffSec; // 勉強時間も増やす
     } else {
       remaining -= diffSec * 2;
       if (remaining < 0) remaining = 0;
+    }
+    // 日付が変わったら勉強時間リセット
+    const newDateStr = getTodayStr();
+    if (newDateStr !== todayDateStr) {
+      todayDateStr = newDateStr;
+      todayStudyTotal = 0;
     }
     lastUpdate = now;
     updateDisplay();
@@ -149,9 +174,12 @@ stopBtn.onclick = () => {
   saveTimer();
 };
 
-setInterval(updateTimer, 1000);
-
 loadTimer();
+
+setInterval(() => {
+  const now = new Date();
+  currentDateTimeElem.textContent = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,"0")}/${String(now.getDate()).padStart(2,"0")} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
+}, 1000);
 
 </script>
 
