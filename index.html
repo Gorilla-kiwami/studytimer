@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>勉強タイマー＋今日の勉強時間</title>
+<title>勉強タイマー＋勉強時間合計（エラー対策済）</title>
 <style>
   body { font-family: sans-serif; text-align: center; margin-top: 40px; }
   #remainingTime { font-size: 3em; margin-bottom: 10px; }
@@ -77,10 +77,13 @@ function updateDisplay() {
   currentDateTimeElem.textContent = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,"0")}/${String(now.getDate()).padStart(2,"0")} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
 }
 
-// 時間帯制限なしで常にtrue（動作確認用）
+// 活動時間制限は外して常にtrue（動作確認用）
 function isActiveTime() {
   return true;
 }
+
+let timerInterval = null;
+let isLoaded = false;
 
 async function loadTimer() {
   const docRef = doc(db, "studyTimers", userId);
@@ -90,10 +93,9 @@ async function loadTimer() {
     remaining = data.remaining;
     studying = data.studying;
     lastUpdate = data.lastUpdated;
-    // 今日の日付と保存された日付を比べる
     todayDateStr = getTodayStr();
     if (data.todayDate !== todayDateStr) {
-      todayStudyTotal = 0; // 日付違えばリセット
+      todayStudyTotal = 0;
     } else {
       todayStudyTotal = data.todayStudyTotal || 0;
     }
@@ -119,17 +121,22 @@ async function loadTimer() {
 
 async function saveTimer() {
   const docRef = doc(db, "studyTimers", userId);
-  await updateDoc(docRef, {
+  const dataToSave = {
     remaining,
     studying,
     lastUpdated,
     todayDate: todayDateStr,
     todayStudyTotal
-  });
-}
+  };
+  console.log("Firestoreに保存:", dataToSave);
 
-let timerInterval = null;
-let isLoaded = false;
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    await updateDoc(docRef, dataToSave);
+  } else {
+    await setDoc(docRef, dataToSave);
+  }
+}
 
 function updateTimer() {
   if (!isLoaded) return;
@@ -143,12 +150,11 @@ function updateTimer() {
     if (studying) {
       remaining += diffSec;
       if (remaining > MAX_TIME) remaining = MAX_TIME;
-      todayStudyTotal += diffSec; // 勉強時間も増やす
+      todayStudyTotal += diffSec;
     } else {
       remaining -= diffSec * 2;
       if (remaining < 0) remaining = 0;
     }
-    // 日付が変わったら勉強時間リセット
     const newDateStr = getTodayStr();
     if (newDateStr !== todayDateStr) {
       todayDateStr = newDateStr;
