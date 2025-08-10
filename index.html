@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>勉強タイマー（動作確認用）</title>
+<style>
+  body {
+    font-family: sans-serif;
+    text-align: center;
+    margin-top: 50px;
+  }
+  #remainingTime {
+    font-size: 3em;
+    margin-bottom: 20px;
+  }
+  button {
+    font-size: 1.5em;
+    margin: 5px;
+    padding: 10px 20px;
+  }
+  #status {
+    margin-top: 15px;
+    font-size: 1.2em;
+  }
+</style>
+</head>
+<body>
+
+<h1>勉強タイマー</h1>
+<div id="remainingTime">--:--:--</div>
+<button id="startBtn">勉強開始</button>
+<button id="stopBtn">勉強停止</button>
+<div id="status"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCEFObhHlcSRSpaY541SzU-7OXzEcH0AOY",
+  authDomain: "study-timer-gorilla.firebaseapp.com",
+  databaseURL: "https://study-timer-gorilla-default-rtdb.firebaseio.com",
+  projectId: "study-timer-gorilla",
+  storageBucket: "study-timer-gorilla.firebasestorage.app",
+  messagingSenderId: "676633463961",
+  appId: "1:676633463961:web:1fdb4fe161d6d448043c08",
+  measurementId: "G-07DN406DG2"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const MAX_TIME = 180 * 60; // 3時間（秒）
+let remaining = MAX_TIME;
+let studying = false;
+let lastUpdate = Date.now();
+
+let userId = localStorage.getItem("userId");
+if (!userId) {
+  userId = Math.random().toString(36).slice(2);
+  localStorage.setItem("userId", userId);
+}
+
+const remainingTimeElem = document.getElementById("remainingTime");
+const statusElem = document.getElementById("status");
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+
+function formatTime(sec) {
+  const h = String(Math.floor(sec / 3600)).padStart(2, "0");
+  const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+  const s = String(sec % 60).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
+
+// 活動時間制限は一時的に外す（常にtrue）
+function isActiveTime() {
+  return true; 
+  // 本来は以下を使う
+  // const hour = new Date().getHours();
+  // return hour >= 6 && hour < 23;
+}
+
+async function loadTimer() {
+  const docRef = doc(db, "studyTimers", userId);
+  const docSnap = await getDoc(docRef);
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    remaining = data.remaining;
+    studying = data.studying;
+    lastUpdate = data.lastUpdated;
+    updateDisplay();
+  } else {
+    await setDoc(doc(db, "studyTimers", userId), {
+      remaining: MAX_TIME,
+      studying: false,
+      lastUpdated: Date.now()
+    });
+    updateDisplay();
+  }
+}
+
+async function saveTimer() {
+  const docRef = doc(db, "studyTimers", userId);
+  await updateDoc(docRef, {
+    remaining,
+    studying,
+    lastUpdated: Date.now()
+  });
+}
+
+function updateDisplay() {
+  remainingTimeElem.textContent = formatTime(remaining);
+  statusElem.textContent = studying ? "勉強中" : "勉強停止中";
+}
+
+function updateTimer() {
+  if (!isActiveTime() || remaining <= 0) {
+    updateDisplay();
+    return;
+  }
+  const now = Date.now();
+  const diffSec = Math.floor((now - lastUpdate) / 1000);
+  if (diffSec >= 1) {
+    if (studying) {
+      remaining += diffSec;
+      if (remaining > MAX_TIME) remaining = MAX_TIME;
+    } else {
+      remaining -= diffSec * 2;
+      if (remaining < 0) remaining = 0;
+    }
+    lastUpdate = now;
+    updateDisplay();
+    saveTimer();
+  }
+}
+
+startBtn.onclick = () => {
+  studying = true;
+  lastUpdate = Date.now();
+  updateDisplay();
+  saveTimer();
+};
+
+stopBtn.onclick = () => {
+  studying = false;
+  lastUpdate = Date.now();
+  updateDisplay();
+  saveTimer();
+};
+
+setInterval(updateTimer, 1000);
+
+loadTimer();
+
+</script>
+
+</body>
+</html>
