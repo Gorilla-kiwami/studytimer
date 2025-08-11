@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>全国ランキング勉強時間バー（上位50人・通知＋経過時間対応）</title>
+<title>全国ランキング勉強時間バー（上位50人・経過時間対応）</title>
 <style>
   body { font-family: sans-serif; background: #f7f7f7; padding: 20px; margin-bottom: 140px; }
   h1 { text-align: center; margin-bottom: 10px; }
@@ -207,10 +207,6 @@ function isWeekend(){
 const MIN_INC = 0.5;   // 0.5時間(30分)
 const MAX_INC = 1.5;   // 1.5時間(90分)
 
-function formatHoursFixed(num){
-  return num.toFixed(2);
-}
-
 function showNotification(text) {
   const div = document.createElement("div");
   div.className = "notification";
@@ -230,13 +226,14 @@ function showNotification(text) {
 
 function generateBatchNotifications(){
   const weekend = isWeekend();
-  const notifyCount = weekend ? 14 : 8; // 休日14回 平日8回（通知倍増済み）
+  const notifyCount = weekend ? 14 : 8; // 休日14回 平日8回
 
   for(let i=0; i<notifyCount; i++){
     const inc = Math.random() * (MAX_INC - MIN_INC) + MIN_INC;
     const idx = Math.floor(Math.random() * nationalUsersCount);
     const user = nationalUsers[idx];
     if(!user) continue;
+    if(user.id === myId) continue; // 自分は通知増加しない
     const oldRank = user.rank;
     user.hours += inc;
 
@@ -244,7 +241,8 @@ function generateBatchNotifications(){
   }
 }
 
-function applyElapsedTime(){
+// 閉じている間の経過時間分を全国の他ユーザーに一括で増やす処理
+function applyElapsedTimeToAllUsers(){
   const last = getLastAccess();
   if(!last) return;
   const now = Date.now();
@@ -252,13 +250,13 @@ function applyElapsedTime(){
   if(elapsedMs <= 0) return;
 
   const elapsedSec = elapsedMs / 1000;
-  const perSecondInc = isWeekend() ? (6/86400) : (3/86400);
-  const increase = perSecondInc * elapsedSec;
 
-  // 自分の勉強時間は経過時間で増やさない（手動追加のみ）
-  // myHours += increase; // これをコメントアウトか削除
+  const perUserPerSec = isWeekend() ? (6/86400) : (3/86400);
 
-  // 保存しないので自分の時間は変わらない
+  for(let user of nationalUsers){
+    if(user.id === myId) continue; // 自分は増やさない
+    user.hours += perUserPerSec * elapsedSec;
+  }
 }
 
 let myHours = loadMyHours();
@@ -365,9 +363,10 @@ function resetAllData(){
   }
 }
 
+// 初期ロード時
 loadUsers();
 myHours = loadMyHours();
-applyElapsedTime();
+applyElapsedTimeToAllUsers();
 updateMyData();
 updateRanking();
 renderTop50Bars();
