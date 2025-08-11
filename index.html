@@ -2,47 +2,61 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>勉強時間比較＋全国ランキング通知</title>
+<title>全国ランキング勉強時間バー（上位50人・通知改良）</title>
 <style>
-  body { font-family: sans-serif; background: #f7f7f7; padding: 20px; margin-bottom: 120px; }
-  h1 { text-align: center; margin-bottom: 30px; }
-  #bars {
-    max-width: 600px;
+  body { font-family: sans-serif; background: #f7f7f7; padding: 20px; margin-bottom: 140px; }
+  h1 { text-align: center; margin-bottom: 10px; }
+  #myRank {
+    max-width: 700px;
+    margin: 0 auto 20px;
+    font-weight: bold;
+    font-size: 18px;
+    text-align: center;
+  }
+  #top50Section {
+    max-width: 700px;
     margin: 0 auto 40px;
   }
+  #top50Section h2 {
+    text-align: center;
+    margin-bottom: 8px;
+    font-weight: bold;
+    border-bottom: 2px solid #2196f3;
+    padding-bottom: 4px;
+  }
   .bar-container {
-    margin: 10px 0;
+    margin: 6px 0;
+    font-size: 14px;
   }
   .label {
-    margin-bottom: 5px;
+    margin-bottom: 2px;
     font-weight: bold;
   }
   .bar-bg {
     background: #ddd;
-    height: 30px;
-    border-radius: 5px;
+    height: 26px;
+    border-radius: 4px;
     overflow: hidden;
   }
   .bar {
     height: 100%;
-    line-height: 30px;
-    padding-right: 10px;
+    line-height: 26px;
+    padding-right: 8px;
     color: white;
     font-weight: bold;
     text-align: right;
     white-space: nowrap;
     transition: width 0.3s ease;
   }
-  .risan1 { background: #d32f2f; }
-  .risan2 { background: #b71c1c; }
-  .tokai1 { background: #388e3c; }
-  .tokai2 { background: #2e7d32; }
-  .tokai3 { background: #1b5e20; }
-  .normal { background: #1976d2; }
-  .mine { background: #2196f3; }
+  .user-bar {
+    background: #2196f3;
+  }
+  .normal-bar {
+    background: #1976d2;
+  }
   #controls {
-    max-width: 600px;
-    margin: 0 auto 80px;
+    max-width: 700px;
+    margin: 0 auto 90px;
     text-align: center;
   }
   input[type=number] {
@@ -62,52 +76,57 @@
     color: white;
     border: none;
   }
-  #myRank {
-    max-width: 600px;
-    margin: 0 auto 20px;
-    font-weight: bold;
-    font-size: 18px;
-    text-align: center;
-  }
-  /* 通知用 */
   #notificationContainer {
     position: fixed;
     bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    max-width: 600px;
-    width: 90%;
+    left: 0;
+    width: 100%;
+    height: 180px;
     pointer-events: none;
+    overflow: visible;
     z-index: 9999;
   }
   .notification {
-    background: rgba(33, 150, 243, 0.9);
-    color: white;
-    padding: 12px 20px;
-    margin-top: 6px;
-    border-radius: 20px;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+    position: absolute;
+    bottom: 0;
     font-weight: bold;
     font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-    opacity: 0;
-    transform: translateY(30px);
-    animation: slideInOut 5s forwards;
-    pointer-events: auto;
+    color: #2196f3;
+    background: rgba(33, 150, 243, 0.15);
+    padding: 2px 8px;
+    border-radius: 8px;
+    white-space: nowrap;
+    user-select: none;
+    pointer-events: none;
+    filter: drop-shadow(0 0 2px rgba(33, 150, 243, 0.6));
+    font-size: 10px;
+    animation: riseUpFade 5s linear forwards;
   }
-  @keyframes slideInOut {
-    0% {opacity: 0; transform: translateY(30px);}
-    10% {opacity: 1; transform: translateY(0);}
-    90% {opacity: 1; transform: translateY(0);}
-    100% {opacity: 0; transform: translateY(-30px);}
+  @keyframes riseUpFade {
+    0% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    80% {
+      opacity: 1;
+      transform: translateY(-140px);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-180px);
+    }
   }
 </style>
 </head>
 <body>
 
-<h1>勉強時間比較バー＋全国ランキング通知</h1>
+<h1>全国ランキング勉強時間バー（上位50人）</h1>
 <div id="myRank">自分の全国ランキング: 読み込み中...</div>
 
-<div id="bars"></div>
+<div id="top50Section">
+  <h2>上位50人</h2>
+  <div id="top50Bars"></div>
+</div>
 
 <div id="controls">
   <input type="number" id="addHours" placeholder="時間" min="0" step="1" />
@@ -116,37 +135,17 @@
   <span>分</span>
   <button onclick="addMyHours()">追加</button>
   <button onclick="resetMyHours()" class="reset">リセット</button>
+  <button id="resetAllBtn" onclick="resetAllData()">全データリセット</button>
 </div>
 
 <div id="notificationContainer"></div>
 
 <script>
-// 開始日時（4月1日 0:00）
-const startDate = new Date(new Date().getFullYear(), 3, 1);
-const secondsPerDay = 86400;
-const maxNationalUsers = 1000000;
+const nationalUsersCount = 100000;
+const myId = 49133;
+const storageKey = "nationalUsersData";
+const myHoursKey = "myNationalHours";
 
-// メンバー一覧（固定ペース・平日・土日）
-const members = [
-  { name: "理三志望1", weekdayRate: 5, weekendRate: 10, className: "risan1" },
-  { name: "理三志望2", weekdayRate: 4, weekendRate: 8, className: "risan2" },
-  { name: "東海生1",   weekdayRate: 4, weekendRate: 7, className: "tokai1" },
-  { name: "東海生2",   weekdayRate: 3, weekendRate: 7, className: "tokai2" },
-  { name: "東海生3",   weekdayRate: 2, weekendRate: 5, className: "tokai3" },
-  { name: "普通の中学生", weekdayRate: 1, weekendRate: 3, className: "normal" },
-  { name: "あなた",     weekdayRate: 0, weekendRate: 0, className: "mine" }
-];
-
-// 自分の初期時間（localStorageから）
-let myHours = parseFloat(localStorage.getItem("myHours")) || 0;
-
-// 曜日判定（日曜=0〜土曜=6）
-function isWeekend(date) {
-  const day = date.getDay();
-  return day === 0 || day === 6;
-}
-
-// 時間表示フォーマット（秒まで）
 function formatTime(hours) {
   const totalSeconds = Math.floor(hours * 3600);
   const h = Math.floor(totalSeconds / 3600);
@@ -155,268 +154,196 @@ function formatTime(hours) {
   return `${h}時間${m}分${s}秒`;
 }
 
-// 4/1から今日までの日毎に計算して初期時間セット
-function initHoursForPlayer(player) {
-  let totalHours = 0;
-  let current = new Date(startDate);
-  const now = new Date();
-
-  while (current < now) {
-    const dayEnd = new Date(current);
-    dayEnd.setHours(23,59,59,999);
-    const secondsInDay = (dayEnd < now ? dayEnd : now) - current;
-    const secondsInDayNum = secondsInDay / 1000;
-    const weekend = isWeekend(current);
-    const rate = weekend ? player.weekendRate / secondsPerDay : player.weekdayRate / secondsPerDay;
-    totalHours += rate * secondsInDayNum;
-    current = new Date(dayEnd.getTime() + 1);
-  }
-  return totalHours;
-}
-
-// プレイヤー配列作成
-let players = members.map(m => ({
-  name: m.name,
-  weekdayRate: m.weekdayRate,
-  weekendRate: m.weekendRate,
-  className: m.className,
-  hours: 0,
-  isUser: m.name === "あなた"
-}));
-
-// 自分の時間初期化
-players.forEach(p => {
-  if (p.isUser) p.hours = myHours;
-});
-
-// 他の人は4/1からの経過時間に応じて初期時間セット
-players.forEach(p => {
-  if (!p.isUser) {
-    p.hours = initHoursForPlayer(p);
-  }
-});
-
-// 現在日時に応じてペースを返す
-function getCurrentRate(player) {
-  return isWeekend(new Date()) ? player.weekendRate / secondsPerDay : player.weekdayRate / secondsPerDay;
-}
-
-// 最大時間取得
-function getMaxHours() {
-  let max = 1;
-  players.forEach(p => {
-    if (p.hours > max) max = p.hours;
-  });
-  return max;
-}
-
-// バー描画＆並び替え
-function renderBars() {
-  players.sort((a, b) => b.hours - a.hours);
-  const maxHours = getMaxHours();
-  const container = document.getElementById("bars");
-  container.innerHTML = "";
-  players.forEach(p => {
-    const widthPercent = (p.hours / maxHours) * 100;
-    const barDiv = document.createElement("div");
-    barDiv.className = "bar-container";
-    const labelDiv = document.createElement("div");
-    labelDiv.className = "label";
-    labelDiv.textContent = p.name;
-    const barBg = document.createElement("div");
-    barBg.className = "bar-bg";
-    const bar = document.createElement("div");
-    bar.className = `bar ${p.className}`;
-    bar.style.width = widthPercent + "%";
-    bar.textContent = formatTime(p.hours);
-    barBg.appendChild(bar);
-    barDiv.appendChild(labelDiv);
-    barDiv.appendChild(barBg);
-    container.appendChild(barDiv);
-  });
-}
-
-// 自分の勉強時間追加（時間＋分）
-function addMyHours() {
-  const h = parseInt(document.getElementById("addHours").value, 10);
-  const m = parseInt(document.getElementById("addMinutes").value, 10);
-  const hoursToAdd = (isNaN(h) ? 0 : h) + (isNaN(m) ? 0 : m / 60);
-  if (hoursToAdd > 0) {
-    const me = players.find(p => p.isUser);
-    me.hours += hoursToAdd;
-    myHours = me.hours;
-    localStorage.setItem("myHours", myHours);
-    document.getElementById("addHours").value = "";
-    document.getElementById("addMinutes").value = "";
-    renderBars();
-  }
-}
-
-// 自分の勉強時間リセット（確認なし）
-function resetMyHours() {
-  const me = players.find(p => p.isUser);
-  me.hours = 0;
-  myHours = 0;
-  localStorage.setItem("myHours", 0);
-  renderBars();
-}
-
-// 全国ランキング用のイニシャル一覧（適当な例）
-const sampleInitials = [
-  "K.R", "M.T", "S.Y", "A.N", "Y.K", "T.H", "R.S", "E.I", "N.O", "H.M",
-  "J.K", "L.D", "P.C", "Q.W", "V.Z", "B.F", "C.G", "D.J", "F.L", "G.P"
-];
-
-// 全国ランキング用データ生成（ユーザーIDとイニシャル、勉強時間、順位）
-const nationalUsersCount = 1000000;
 let nationalUsers = [];
 
-// ランダム初期時間0〜50時間程度で初期化
-for (let i=1; i<=nationalUsersCount; i++) {
-  // イニシャルランダム
-  const ini = sampleInitials[Math.floor(Math.random() * sampleInitials.length)];
-  // 初期時間 0〜50時間（多少正規分布に寄せる？単純ランダムでOK）
-  const initialHours = Math.random() * 50;
-  nationalUsers.push({
-    id: i,
-    initials: ini,
-    hours: initialHours,
-    rank: i
-  });
-}
-
-// 自分の全国ランキングの勉強時間をplayersから反映
-function updateMyNationalHours() {
-  const me = players.find(p => p.isUser);
-  // nationalUsersのどこかに自分を入れるか、ID 491333位相当の場所を自分に割り当てる
-  // ここではid=491333に割り当てて上書き
-  nationalUsers[491332] = {
-    id: 491333,
-    initials: "K.R",
-    hours: me.hours,
-    rank: 491333
-  };
-}
-
-// ランク順位更新（全国1M人を勉強時間降順で再ソートして順位更新）
-function updateNationalRanks() {
-  nationalUsers.sort((a, b) => b.hours - a.hours);
-  for(let i=0; i<nationalUsers.length; i++) {
-    nationalUsers[i].rank = i + 1;
+function loadUsers() {
+  const raw = localStorage.getItem(storageKey);
+  if(raw){
+    try {
+      const data = JSON.parse(raw);
+      if(Array.isArray(data) && data.length === nationalUsersCount){
+        nationalUsers = data;
+        return;
+      }
+    } catch(e){}
   }
+  nationalUsers = [];
+  for(let i=1; i<=nationalUsersCount; i++){
+    nationalUsers.push({id:i, hours:0});
+  }
+  saveUsers();
 }
 
-// 自分の全国ランキング表示更新
-function updateMyRankDisplay() {
-  const me = nationalUsers.find(u => u.id === 491333);
-  if(me) {
-    document.getElementById("myRank").textContent =
-      `自分の全国ランキング: ${me.rank.toLocaleString()}位 / 1,000,000人中 (${formatTime(me.hours)})`;
+function saveUsers(){
+  localStorage.setItem(storageKey, JSON.stringify(nationalUsers));
+}
+
+function loadMyHours(){
+  const h = localStorage.getItem(myHoursKey);
+  if(h) return parseFloat(h);
+  return 0;
+}
+
+function saveMyHours(h){
+  localStorage.setItem(myHoursKey, h.toString());
+}
+
+function updateMyData(){
+  const idx = nationalUsers.findIndex(u => u.id === myId);
+  if(idx>=0){
+    nationalUsers[idx].hours = myHours;
   } else {
-    document.getElementById("myRank").textContent = "自分の全国ランキング: 不明";
+    nationalUsers.push({id: myId, hours: myHours});
   }
 }
 
-// 通知を作って表示、数秒後フェードアウトして消す
+function updateRanking(){
+  nationalUsers.sort((a,b) => b.hours - a.hours);
+  nationalUsers.forEach((u,i) => u.rank = i+1);
+}
+
+function getMyRank(){
+  const me = nationalUsers.find(u => u.id === myId);
+  return me ? me.rank : -1;
+}
+
+function createBar(user, maxHours){
+  const widthPercent = (user.hours / maxHours) * 100;
+  const barDiv = document.createElement("div");
+  barDiv.className = "bar-container";
+
+  const labelDiv = document.createElement("div");
+  labelDiv.className = "label";
+  labelDiv.textContent = `#${user.rank} 番号:${user.id}`;
+
+  const barBg = document.createElement("div");
+  barBg.className = "bar-bg";
+
+  const bar = document.createElement("div");
+  bar.className = (user.id === myId) ? "bar user-bar" : "bar normal-bar";
+  bar.style.width = widthPercent + "%";
+  bar.textContent = formatTime(user.hours);
+
+  barBg.appendChild(bar);
+  barDiv.appendChild(labelDiv);
+  barDiv.appendChild(barBg);
+  return barDiv;
+}
+
+function renderTop50Bars(){
+  const container = document.getElementById("top50Bars");
+  container.innerHTML = "";
+  const maxHours = nationalUsers[0]?.hours || 1;
+  for(let i=0; i<50; i++){
+    const user = nationalUsers[i];
+    if(!user) break;
+    container.appendChild(createBar(user, maxHours));
+  }
+}
+
+const notificationContainer = document.getElementById("notificationContainer");
+
 function showNotification(text) {
-  const container = document.getElementById("notificationContainer");
   const div = document.createElement("div");
   div.className = "notification";
+
+  // ランダムなX座標（0%〜90%）
+  const randomX = Math.random() * 90;
+  div.style.left = randomX + "%";
+
   div.textContent = text;
-  container.appendChild(div);
-  // 5秒後に削除
+  notificationContainer.appendChild(div);
+
+  // 5秒後に消す（CSSアニメーション5秒）
   setTimeout(() => {
-    div.style.opacity = "0";
-    div.style.transform = "translateY(-30px)";
-    setTimeout(() => {
-      if(div.parentNode) div.parentNode.removeChild(div);
-    }, 1000);
-  }, 4000);
+    if(div.parentNode) div.parentNode.removeChild(div);
+  }, 5000);
 }
 
-// ランダムな全国ユーザー通知を生成して表示
-function generateRandomNotification() {
-  // 適当な勉強時間増加（0.1〜0.5時間）
-  const incHours = (Math.random() * 0.4 + 0.1);
-  // ランダムにユーザーを選ぶ
-  const userIndex = Math.floor(Math.random() * nationalUsersCount);
-  const user = nationalUsers[userIndex];
-  user.hours += incHours;
-
-  // ランク更新を簡易にするためだけに全国を毎回全ソートは重いので
-  // ランクを簡易更新（ずれてもOK）
-  // ここは精度は犠牲にして下でまとめて更新する
-
-  // 昇降順位の例を作るために順位を少しだけ動かす（乱数で上下10以内）
-  let oldRank = user.rank;
-  user.rank = Math.max(1, Math.min(maxNationalUsers, user.rank + Math.floor((Math.random()-0.5)*20)));
-
-  // 表示文例：
-  // 「491333位のK.Rが2時間勉強して491091位になりました」
-  const text = `${oldRank.toLocaleString()}位の${user.initials}が${incHours.toFixed(2)}時間勉強して${user.rank.toLocaleString()}位になりました`;
-
-  showNotification(text);
+function isWeekend(){
+  const d = new Date();
+  const day = d.getDay(); // 0=日曜,6=土曜
+  return (day === 0 || day === 6);
 }
 
-// 自分のバーなども含めてplayersの時間更新
-function updatePlayers() {
-  players.forEach(p => {
-    if (!p.isUser) {
-      p.hours += getCurrentRate(p);
-    }
-  });
+const MIN_INC = 0.5;   // 0.5時間(30分)
+const MAX_INC = 1.5;   // 1.5時間(90分)
+
+function generateBatchNotifications(){
+  const weekend = isWeekend();
+  const notifyCount = weekend ? 7 : 4; // 休日7回 平日4回
+
+  for(let i=0; i<notifyCount; i++){
+    const inc = Math.random() * (MAX_INC - MIN_INC) + MIN_INC;
+    const idx = Math.floor(Math.random() * nationalUsersCount);
+    const user = nationalUsers[idx];
+    if(!user) continue;
+    const oldRank = user.rank;
+    user.hours += inc;
+
+    showNotification(`#${oldRank} 番号${user.id}が${inc.toFixed(2)}時間勉強`);
+  }
 }
 
-// メインループ
-setInterval(() => {
-  updatePlayers();
-  // 自分の全国ランキングの時間もnationalUsersに反映
-  updateMyNationalHours();
+let myHours = loadMyHours();
 
-  // 全国順位は数秒に1回ソートして正確化
-  // 重いのでここは5秒毎にする
-}, 1000);
-
-setInterval(() => {
-  updateNationalRanks();
+function mainLoop(){
+  updateMyData();
+  updateRanking();
+  renderTop50Bars();
   updateMyRankDisplay();
-  renderBars();
-}, 5000);
+  saveUsers();
+}
 
-// 3秒毎に通知生成
-setInterval(() => {
-  generateRandomNotification();
-}, 3000);
+function updateMyRankDisplay(){
+  const rank = getMyRank();
+  document.getElementById("myRank").textContent =
+    `自分の全国ランキング: ${rank.toLocaleString()}位 / ${nationalUsersCount.toLocaleString()}人中 (${formatTime(myHours)})`;
+}
 
-// 初期ランク更新＆描画
-updateNationalRanks();
-updateMyRankDisplay();
-renderBars();
-
-// 自分の勉強時間追加（時間＋分）
-function addMyHours() {
+function addMyHours(){
   const h = parseInt(document.getElementById("addHours").value, 10);
   const m = parseInt(document.getElementById("addMinutes").value, 10);
   const hoursToAdd = (isNaN(h) ? 0 : h) + (isNaN(m) ? 0 : m / 60);
-  if (hoursToAdd > 0) {
-    const me = players.find(p => p.isUser);
-    me.hours += hoursToAdd;
-    myHours = me.hours;
-    localStorage.setItem("myHours", myHours);
+  if(hoursToAdd > 0){
+    myHours += hoursToAdd;
+    saveMyHours(myHours);
+    updateMyData();
+    updateRanking();
+    renderTop50Bars();
+    updateMyRankDisplay();
     document.getElementById("addHours").value = "";
     document.getElementById("addMinutes").value = "";
-    renderBars();
   }
 }
 
-// 自分の勉強時間リセット（確認なし）
-function resetMyHours() {
-  const me = players.find(p => p.isUser);
-  me.hours = 0;
+function resetMyHours(){
   myHours = 0;
-  localStorage.setItem("myHours", 0);
-  renderBars();
+  saveMyHours(myHours);
+  updateMyData();
+  updateRanking();
+  renderTop50Bars();
+  updateMyRankDisplay();
 }
+
+function resetAllData(){
+  if(confirm("全データをリセットして初期状態に戻しますか？")){
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(myHoursKey);
+    location.reload();
+  }
+}
+
+loadUsers();
+updateMyData();
+updateRanking();
+renderTop50Bars();
+updateMyRankDisplay();
+
+setInterval(generateBatchNotifications, 1000);
+setInterval(mainLoop, 1000);
+
 </script>
+
 </body>
 </html>
