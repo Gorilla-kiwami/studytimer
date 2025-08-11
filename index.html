@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>全国ランキング勉強時間バー（上位50人・通知改良）</title>
+<title>全国ランキング勉強時間バー（上位50人・通知＋経過時間対応）</title>
 <style>
   body { font-family: sans-serif; background: #f7f7f7; padding: 20px; margin-bottom: 140px; }
   h1 { text-align: center; margin-bottom: 10px; }
@@ -145,6 +145,7 @@ const nationalUsersCount = 100000;
 const myId = 49133;
 const storageKey = "nationalUsersData";
 const myHoursKey = "myNationalHours";
+const lastAccessKey = "lastAccessTimestamp";
 
 function formatTime(hours) {
   const totalSeconds = Math.floor(hours * 3600);
@@ -187,6 +188,80 @@ function loadMyHours(){
 function saveMyHours(h){
   localStorage.setItem(myHoursKey, h.toString());
 }
+
+function saveLastAccess(){
+  localStorage.setItem(lastAccessKey, Date.now().toString());
+}
+
+function getLastAccess(){
+  const val = localStorage.getItem(lastAccessKey);
+  return val ? parseInt(val,10) : null;
+}
+
+function isWeekend(){
+  const d = new Date();
+  const day = d.getDay(); // 0=日曜,6=土曜
+  return (day === 0 || day === 6);
+}
+
+const MIN_INC = 0.5;   // 0.5時間(30分)
+const MAX_INC = 1.5;   // 1.5時間(90分)
+
+function formatHoursFixed(num){
+  return num.toFixed(2);
+}
+
+function showNotification(text) {
+  const div = document.createElement("div");
+  div.className = "notification";
+
+  // ランダムなX座標（0%〜90%）
+  const randomX = Math.random() * 90;
+  div.style.left = randomX + "%";
+
+  div.textContent = text;
+  document.getElementById("notificationContainer").appendChild(div);
+
+  // 5秒後に消す（CSSアニメーション5秒）
+  setTimeout(() => {
+    if(div.parentNode) div.parentNode.removeChild(div);
+  }, 5000);
+}
+
+function generateBatchNotifications(){
+  const weekend = isWeekend();
+  const notifyCount = weekend ? 14 : 8; // 休日14回 平日8回（通知倍増済み）
+
+  for(let i=0; i<notifyCount; i++){
+    const inc = Math.random() * (MAX_INC - MIN_INC) + MIN_INC;
+    const idx = Math.floor(Math.random() * nationalUsersCount);
+    const user = nationalUsers[idx];
+    if(!user) continue;
+    const oldRank = user.rank;
+    user.hours += inc;
+
+    showNotification(`#${oldRank} 番号${user.id}が${inc.toFixed(2)}時間勉強`);
+  }
+}
+
+function applyElapsedTime(){
+  const last = getLastAccess();
+  if(!last) return;
+  const now = Date.now();
+  const elapsedMs = now - last;
+  if(elapsedMs <= 0) return;
+
+  const elapsedSec = elapsedMs / 1000;
+  const perSecondInc = isWeekend() ? (6/86400) : (3/86400);
+  const increase = perSecondInc * elapsedSec;
+
+  // 自分の勉強時間は経過時間で増やさない（手動追加のみ）
+  // myHours += increase; // これをコメントアウトか削除
+
+  // 保存しないので自分の時間は変わらない
+}
+
+let myHours = loadMyHours();
 
 function updateMyData(){
   const idx = nationalUsers.findIndex(u => u.id === myId);
@@ -241,58 +316,13 @@ function renderTop50Bars(){
   }
 }
 
-const notificationContainer = document.getElementById("notificationContainer");
-
-function showNotification(text) {
-  const div = document.createElement("div");
-  div.className = "notification";
-
-  // ランダムなX座標（0%〜90%）
-  const randomX = Math.random() * 90;
-  div.style.left = randomX + "%";
-
-  div.textContent = text;
-  notificationContainer.appendChild(div);
-
-  // 5秒後に消す（CSSアニメーション5秒）
-  setTimeout(() => {
-    if(div.parentNode) div.parentNode.removeChild(div);
-  }, 5000);
-}
-
-function isWeekend(){
-  const d = new Date();
-  const day = d.getDay(); // 0=日曜,6=土曜
-  return (day === 0 || day === 6);
-}
-
-const MIN_INC = 0.1;   // 0.5時間(30分)
-const MAX_INC = 0.3;   // 1.5時間(90分)
-
-function generateBatchNotifications(){
-  const weekend = isWeekend();
-  const notifyCount = weekend ? 35 : 20; // 休日7回 平日4回
-
-  for(let i=0; i<notifyCount; i++){
-    const inc = Math.random() * (MAX_INC - MIN_INC) + MIN_INC;
-    const idx = Math.floor(Math.random() * nationalUsersCount);
-    const user = nationalUsers[idx];
-    if(!user) continue;
-    const oldRank = user.rank;
-    user.hours += inc;
-
-    showNotification(`#${oldRank} 番号${user.id}が${inc.toFixed(2)}時間勉強`);
-  }
-}
-
-let myHours = loadMyHours();
-
 function mainLoop(){
   updateMyData();
   updateRanking();
   renderTop50Bars();
   updateMyRankDisplay();
   saveUsers();
+  saveLastAccess();
 }
 
 function updateMyRankDisplay(){
@@ -330,11 +360,14 @@ function resetAllData(){
   if(confirm("全データをリセットして初期状態に戻しますか？")){
     localStorage.removeItem(storageKey);
     localStorage.removeItem(myHoursKey);
+    localStorage.removeItem(lastAccessKey);
     location.reload();
   }
 }
 
 loadUsers();
+myHours = loadMyHours();
+applyElapsedTime();
 updateMyData();
 updateRanking();
 renderTop50Bars();
@@ -342,6 +375,9 @@ updateMyRankDisplay();
 
 setInterval(generateBatchNotifications, 1000);
 setInterval(mainLoop, 1000);
+
+window.addEventListener("beforeunload", saveLastAccess);
+window.addEventListener("pagehide", saveLastAccess);
 
 </script>
 
