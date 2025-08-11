@@ -266,12 +266,12 @@ function isWeekend(){
   return (day === 0 || day === 6);
 }
 
-const MIN_INC = 0.5;   // 0.5時間(30分)
-const MAX_INC = 2.5;   // 1.5時間(90分)
+const MIN_INC = 0.1;   // 0.5時間(30分)
+const MAX_INC = 0.3;   // 1.5時間(90分)
 
 function generateBatchNotifications(){
   const weekend = isWeekend();
-  const notifyCount = weekend ? 14 : 10; // 休日7回 平日4回
+  const notifyCount = weekend ? 35 : 20; // 休日7回 平日4回
 
   for(let i=0; i<notifyCount; i++){
     const inc = Math.random() * (MAX_INC - MIN_INC) + MIN_INC;
