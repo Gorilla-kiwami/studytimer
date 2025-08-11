@@ -267,11 +267,11 @@ function isWeekend(){
 }
 
 const MIN_INC = 0.5;   // 0.5時間(30分)
-const MAX_INC = 1.5;   // 1.5時間(90分)
+const MAX_INC = 2.5;   // 1.5時間(90分)
 
 function generateBatchNotifications(){
   const weekend = isWeekend();
-  const notifyCount = weekend ? 7 : 4; // 休日7回 平日4回
+  const notifyCount = weekend ? 14 : 10; // 休日7回 平日4回
 
   for(let i=0; i<notifyCount; i++){
     const inc = Math.random() * (MAX_INC - MIN_INC) + MIN_INC;
